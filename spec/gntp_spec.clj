@@ -1,5 +1,6 @@
 (ns gntp-spec
   (:require [clojure.string :refer [split split-lines]]
+            [clojure.java.io :refer [as-file as-url resource]]
             [speclj.core :refer :all]
             [gntp :refer [make-growler]])
   (:import (java.io
@@ -10,6 +11,8 @@
              PrintStream)))
 
 (def ^:private default-name "gntp Self Test")
+(def ^:private icon-url (as-url "http://example.com/icon.png"))
+(def ^:private icon-file (as-file (resource "icon.png")))
 
 ; We need something that implements (.readLine)
 (defn- input-stub [s]
@@ -69,7 +72,9 @@
     (it "connects on port 23053"
       (should= 23053 @socket-port))
     (it "does not send a password"
-      (should= "GNTP/1.0 REGISTER NONE" (first (first @request)))))
+      (should= "GNTP/1.0 REGISTER NONE" (first (first @request))))
+    (it "does not have an icon"
+      (should-not (some #(in? #"Application-Icon:" %) @request))))
 
   (describe "when given a host name"
     (with growler (make-growler default-name :host "example.com"))
@@ -89,7 +94,34 @@
     (before (@growler))
     (it "has a password"
       (should
-        (some #(in? #"GNTP/1.0 REGISTER NONE SHA512:\S+" %) @request)))))
+        (some #(in? #"GNTP/1.0 REGISTER NONE SHA512:\S+" %) @request))))
+
+  (describe "when given an icon"
+    (describe "as a url"
+      (with growler (make-growler default-name :icon icon-url))
+      (with request (read-output))
+      (before (@growler))
+      (it "has an icon url"
+        (should
+          (some #(in? (str "Application-Icon: " (.toString icon-url)) %)
+                @request))))
+    (describe "as a file"
+      (with growler (make-growler default-name :icon icon-file))
+      (with request (read-output))
+      (before (@growler))
+      (it "has an icon resource pointer"
+        (should (some #(in? #"Application-Icon: x-growl-resouce://\S+" %)
+                      @request)))
+      (it "has an identifier"
+        (should (some #(in? #"Identifier: \S+" %) @request)))
+      (it "has a length"
+        (should (some #(in? #"Length: \d+" %) @request)))
+      (it "has matching pointer and identifier"
+        (let [pointer-l (some #(in? #"Application-Icon: x-growl-resouce://\S+" %) @request)
+              pointer (second (re-matches #"Application-Icon: x-growl-resouce://(\S+)" pointer-l))
+              identifier-l (some #(in? #"Identifier: \S+" %) @request)
+              identifier (second (re-matches #"Identifier: (\S+)" identifier-l))]
+          (should= pointer identifier))))))
 
 (describe "Registering notifications"
 
@@ -107,7 +139,9 @@
     (it "has a reasonable display name"
       (should (some #(in? "Notification-Display-Name: notify" %) @request)))
     (it "is enabled"
-      (should (some #(in? "Notification-Enabled: true" %) @request))))
+      (should (some #(in? "Notification-Enabled: true" %) @request)))
+    (it "does not have an icon"
+      (should-not (some #(in? "Notification-Icon:" %) @request))))
 
   (describe "when given a name"
     (before (@growler :notify {:name "Notification"}))
@@ -119,6 +153,27 @@
     (before (@growler :notify {:enabled false}))
     (it "is not enabled"
       (should (some #(in? "Notification-Enabled: false" %) @request))))
+
+  (describe "when given an icon"
+    (describe "as a url"
+      (before (@growler :notify {:icon icon-url}))
+      (it "has an icon url"
+        (should (some #(in? #"Notification-Icon: \S+" %) @request))))
+    (describe "as a file"
+      (before (@growler :notify {:icon icon-file}))
+      (it "has an icon resource pointer"
+        (should (some #(in? #"Notification-Icon: x-growl-resouce://\S+" %)
+                      @request)))
+      (it "has an identifier"
+        (should (some #(in? #"Identifier: \S+" %) @request)))
+      (it "has a length"
+        (should (some #(in? #"Length: \d+" %) @request)))
+      (it "has matching pointer and identifier"
+        (let [pointer-l (some #(in? #"Notification-Icon: x-growl-resouce://\S+" %) @request)
+              pointer (second (re-matches #"Notification-Icon: x-growl-resouce://(\S+)" pointer-l))
+              identifier-l (some #(in? #"Identifier: \S+" %) @request)
+              identifier (second (re-matches #"Identifier: (\S+)" identifier-l))]
+          (should= pointer identifier)))))
 
   (describe "zero notifications"
     (before (@growler))
@@ -155,7 +210,9 @@
     (it "is not sticky"
       (should (some #(in? "Notification-Sticky: false" %) @request)))
     (it "has normal priority"
-      (should (some #(in? "Notification-Priority: 0" %) @request))))
+      (should (some #(in? "Notification-Priority: 0" %) @request)))
+    (it "does not have an icon"
+      (should-not (some #(in? #"Notification-Icon: \S+" %) @request))))
 
   (describe "when given text"
     (before ((:notify @notifiers) "Notification" :text "Notification text"))
@@ -172,6 +229,27 @@
     (before ((:notify @notifiers) "Notification" :priority 2))
     (it "has a priority"
       (should (some #(in? "Notification-Priority: 2" %) @request))))
+
+  (describe "when given an icon"
+    (describe "as a url"
+      (before ((:notify @notifiers) "Notification" :icon icon-url))
+      (it "has an icon url"
+        (should (some #(in? #"Notification-Icon: \S+" %) @request))))
+    (describe "as a file"
+      (before ((:notify @notifiers) "Notification" :icon icon-file))
+      (it "has an icon resource pointer"
+        (should (some #(in? #"Notification-Icon: x-growl-resouce://\S+" %)
+                      @request)))
+      (it "has an identifier"
+        (should (some #(in? #"Identifier: \S+" %) @request)))
+      (it "has a length"
+        (should (some #(in? #"Length: \d+" %) @request)))
+      (it "has matching pointer and identifier"
+        (let [pointer-l (some #(in? #"Notification-Icon: x-growl-resouce://\S+" %) @request)
+              pointer (second (re-matches #"Notification-Icon: x-growl-resouce://(\S+)" pointer-l))
+              identifier-l (some #(in? #"Identifier: \S+" %) @request)
+              identifier (second (re-matches #"Identifier: (\S+)" identifier-l))]
+          (should= pointer identifier)))))
 
   (describe "when type is not registered"
     (it "does not work"
