@@ -35,17 +35,56 @@
     (catch UnsupportedEncodingException e nil)
     (catch IOException e nil)))
 
+; Tests if elm can be found in seq. When elm is a regex, returns the first
+; matching item in seq or nil if no such item exists. Otherwise returns true
+; when elm is a value in seq or false otherwise.
+(defmulti ^:private in? (fn [elm _] (class elm)))
+(defmethod in? java.util.regex.Pattern [elm seq]
+  (some #(re-find elm %) seq))
+(defmethod in? :default [elm seq]
+  (some #(= elm %) seq))
+
+(defn- handle-callback
+  "Returns a map of the callback headers in response conjoined to current."
+  [current response]
+    (when (= "CALLBACK" (second (re-find #"GNTP/1.0\s+-(\S+)" (first response))))
+      (let [app-name (second (in? #"Application-Name: ?(.*)" response))
+            id (second (in? #"Notification-ID: ?(.*)" response))
+            result (second (in? #"Notification-Callback-Result: ?(.*)" response))
+            timestamp (second (in? #"Notification-Callback-Timestamp: ?(.*)" response))
+            context (second (in? #"Notification-Callback-Context: ?(.*)" response))
+            type (second (in? #"Notification-Callback-Context-Type: ?(.*)" response))]
+        (conj current {:app-name app-name
+                       :id id
+                       :result result
+                       :timestamp timestamp
+                       :context context
+                       :type type}))))
+
 (defn- send-and-receive
-  "Sends the message to the GNTP server at host:port. Returns true on success
-  and nil on failure."
-  [host port message]
-  (when-let [conn (connect host port)]
-    (try
-      (.print (:out conn) message)
-      (.flush (:out conn))
-      (let [header (.readLine (:in conn))]
-        (when (= "OK" (second (re-find #"GNTP/1.0\s+-(\S+)" header))) true))
-    (finally (.close (:socket conn))))))
+  "Sends the message to the GNTP server at host:port. If callback is given it
+  should an agent that will have a map of callback headers conjoined. Returns
+  true on success and nil on failure."
+  ([host port message] (send-and-receive host port message nil))
+  ([host port message callback]
+   (when-let [conn (connect host port)]
+     (try
+       (doto (:out conn)
+         (.print message)
+         (.flush))
+       (let [[response callback-response]
+             (split-with #(not (= "" %)) (line-seq (:in conn)))]
+         (when callback
+           ; We need to drop the blank line that seperates the response from
+           ; the callback response.
+           (send-off callback handle-callback (drop 1 callback-response)))
+         (= "OK" (second (re-find #"GNTP/1.0\s+-(\S+)" (first response)))))
+       (finally
+         ; Spawn a thread to close the socket (only after the callback, if any,
+         ; finishes).
+         (.start (Thread. (fn []
+                            (when callback (await callback))
+                            (.close (:socket conn))))))))))
 
 (defn- gntp-header
   "Returns the proper GNTP header for use with password."
@@ -92,6 +131,14 @@
 (defmethod process-icon :default [icon]
   (throw (IllegalArgumentException. (str "Not a file or URL: " icon))))
 
+(defn- callback-headers
+  "Returns the proper headers for use with callback."
+  [callback]
+  (if (= URL (class callback))
+    (str "Notification-Callback-Target: " callback "\r\n")
+    (str "Notification-Callback-Context: " (:context callback) "\r\n"
+         "Notification-Callback-Context-Type: " (:type callback) "\r\n")))
+
 (defn- binary-headers
   "Returns binary-data correctly formated for GNTP. Expects a map with unique
   identifiers as keys and a map with :length and :data keys as values."
@@ -106,8 +153,12 @@
 (defn- notify
   "Sends a notification over GNTP. The notification type must have already been
   registered. Takes an application name, password, host, port, type, title and
-  (optional) named arguments :text, :sticky, :priority, and :icon. Returns true
-  if the notification is delivered successfully, nil otherwise."
+  (optional) named arguments :text, :sticky, :priority, :icon, and :callback.
+  :priority should be an integer in [-2, 2]. :icon should be a URL or File.
+  :callback should be an map with at least an :agent key, and optionally
+  :context and :type keys. The :agent will have any callback headers as a map
+  conjoined. The :context and :type values will be echoed in the callback.
+  Returns true if the notification is delivered successfully, nil otherwise."
   [app-name password host port type title & more]
   (binding [*binary-data* {}]
    (let [header (gntp-header "NOTIFY" password)
@@ -116,6 +167,7 @@
          sticky (get options :sticky false)
          priority (get options :priority 0)
          icon (process-icon (get options :icon nil))
+         callback (get options :callback nil)
          binary-headers (binary-headers *binary-data*)
          message (str
                    header
@@ -126,9 +178,10 @@
                    "Notification-Sticky: " sticky "\r\n"
                    "Notification-Priority: " priority "\r\n"
                    (when icon (str "Notification-Icon: " icon "\r\n"))
+                   (when callback (callback-headers callback))
                    (apply str binary-headers)
                    "\r\n")]
-     (send-and-receive host port message))))
+     (send-and-receive host port message (:agent callback)))))
 
 (defn- register
   "Registers an application and associated notification names. An application

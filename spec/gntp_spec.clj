@@ -212,7 +212,9 @@
     (it "has normal priority"
       (should (some #(in? "Notification-Priority: 0" %) @request)))
     (it "does not have an icon"
-      (should-not (some #(in? #"Notification-Icon: \S+" %) @request))))
+      (should-not (some #(in? #"Notification-Icon: \S+" %) @request)))
+    (it "does not have a callback"
+      (should-not (some #(in? #"Notification-Callback-\S+: \S+" %) @request))))
 
   (describe "when given text"
     (before ((:notify @notifiers) "Notification" :text "Notification text"))
@@ -250,6 +252,53 @@
               identifier-l (some #(in? #"Identifier: \S+" %) @request)
               identifier (second (re-matches #"Identifier: (\S+)" identifier-l))]
           (should= pointer identifier)))))
+
+  (describe "when given a callback"
+    (describe "as a URL"
+      (before ((:notify @notifiers) "Notification" :callback (as-url "http://example.com")))
+      (it "has a URL callback"
+        (should (some #(in? "Notification-Callback-Target: http://example.com" %) @request))))
+    (describe "as a map"
+      (around [it]
+        (let [connect-stub
+              (fn [_ _]
+                {:socket socket-stub
+                 :out output-stub
+                 :in (input-stub
+                       (str "GNTP/1.0 -OK NONE\r\n"
+                            "\r\n"
+                            "GNTP/1.0 -CALLBACK NONE\r\n"
+                            "Application-Name: " default-name "\r\n"
+                            "Notification-ID: 1\r\n"
+                            "Notification-Callback-Result: CLICKED\r\n"
+                            "Notification-Callback-Timestamp: 2012-10-04 15:47:32-0800\r\n"
+                            "Notification-Callback-Context: Context\r\n"
+                            "Notification-Callback-Context-Type: Type\r\n"
+                            "\r\n"))})]
+          (with-redefs [gntp/connect connect-stub]
+            (it))))
+      (with callback (agent []))
+      (before ((:notify @notifiers) "Notification" :callback {:agent @callback
+                                                              :context "Context"
+                                                              :type "Type"}))
+      (it "has a callback context"
+        (should (some #(in? "Notification-Callback-Context: Context" %) @request)))
+      (it "has a callback context type"
+        (should (some #(in? "Notification-Callback-Context-Type: Type" %) @request)))
+      (describe "populating the callback agent"
+        (before (await-for 1000 @callback))
+        (it "sets the app-name"
+          (should= default-name (:app-name (first @@callback))))
+        (it "sets the id"
+          (should= "1" (:id (first @@callback))))
+        (it "sets the result"
+          (should= "CLICKED" (:result (first @@callback))))
+        (it "sets the timestamp"
+          (should= "2012-10-04 15:47:32-0800" (:timestamp (first @@callback))))
+        (it "sets the context"
+          (should= "Context" (:context (first @@callback))))
+        (it "sets the type"
+          (should= "Type" (:type (first @@callback)))))))
 
   (describe "when type is not registered"
     (it "does not work"
