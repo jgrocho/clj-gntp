@@ -178,6 +178,7 @@
          priority (get options :priority 0)
          icon (process-icon (get options :icon nil))
          callback (get options :callback nil)
+         replaces (get options :replaces nil)
          binary-headers (binary-headers *binary-data*)
          id (UUID/randomUUID)
          message (str
@@ -190,6 +191,9 @@
                    "Notification-Sticky: " sticky "\r\n"
                    "Notification-Priority: " priority "\r\n"
                    (when icon (str "Notification-Icon: " icon "\r\n"))
+                   (if replaces
+                     (str "Notification-Coalescing-ID: " replaces "\r\n")
+                     (str "Notification-Coalescing-ID: " id "\r\n"))
                    (when callback (callback-headers callback))
                    (apply str binary-headers)
                    "\r\n")]

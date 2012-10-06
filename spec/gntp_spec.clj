@@ -211,6 +211,15 @@
       (should (some #(in? "Notification-Title: Notification" %) @request)))
     (it "has an id"
       (should (some #(in? #"Notification-ID: \S+" %) @request)))
+    (describe "coalescing id"
+      (it "has one"
+        (should (some #(in? #"Notification-Coalescing-ID: \S+" %) @request)))
+      (it "matches the id"
+        (let [id-l (some #(in? #"Notification-ID: \S+" %) @request)
+              id (second (re-matches #"Notification-ID: (\S+)" id-l))
+              coal-id-l (some #(in? #"Notification-Coalescing-ID: \S+" %) @request)
+              coal-id (second (re-matches #"Notification-Coalescing-ID: (\S+)" coal-id-l))]
+          (should= id coal-id))))
     (it "has no text"
       (should (some #(in? "Notification-Text: " %) @request)))
     (it "is not sticky"
@@ -227,6 +236,13 @@
     (it "has text"
       (should
         (some #(in? "Notification-Text: Notification text" %) @request))))
+
+  (describe "when given a 'replaces' id"
+    (with replaces (UUID/randomUUID))
+    (before ((:notify @notifiers) "Notification" :replaces @replaces))
+    (it "has a coalescing id"
+      (should
+        (some #(in? (str "Notification-Coalescing-ID: " @replaces) %) @request))))
 
   (describe "when made sticky"
     (before ((:notify @notifiers) "Notification" :sticky true))
