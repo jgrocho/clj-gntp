@@ -16,7 +16,9 @@
              UnknownHostException
              URL)
            (java.security
-             SecureRandom)))
+             SecureRandom)
+           (java.util
+             UUID)))
 
 (def ^:private default-password "")
 (def ^:private default-host "localhost")
@@ -166,7 +168,7 @@
   :callback should be an map with at least an :agent key, and optionally
   :context and :type keys. The :agent will have any callback headers as a map
   conjoined. The :context and :type values will be echoed in the callback.
-  Returns true if the notification is delivered successfully, nil otherwise."
+  Returns a UUID if the notification is delivered successfully, nil otherwise."
   [app-name password host port type title & more]
   (binding [*binary-data* {}]
    (let [header (gntp-header "NOTIFY" password)
@@ -177,10 +179,12 @@
          icon (process-icon (get options :icon nil))
          callback (get options :callback nil)
          binary-headers (binary-headers *binary-data*)
+         id (UUID/randomUUID)
          message (str
                    header
                    "Application-Name: " app-name "\r\n"
                    "Notification-Name: " type "\r\n"
+                   "Notification-ID: " id "\r\n"
                    "Notification-Title: " title "\r\n"
                    "Notification-Text: " text "\r\n"
                    "Notification-Sticky: " sticky "\r\n"
@@ -189,7 +193,9 @@
                    (when callback (callback-headers callback))
                    (apply str binary-headers)
                    "\r\n")]
-     (send-and-receive host port message (:agent callback)))))
+     (when
+       (send-and-receive host port message (:agent callback))
+       id))))
 
 (defn- register
   "Registers an application and associated notification names. An application

@@ -8,7 +8,8 @@
              ByteArrayInputStream
              ByteArrayOutputStream
              InputStreamReader
-             PrintStream)))
+             PrintStream)
+           (java.util UUID)))
 
 (def ^:private default-name "gntp Self Test")
 (def ^:private icon-url (as-url "http://example.com/icon.png"))
@@ -202,9 +203,14 @@
   (before (.reset output-stream))
 
   (describe "with default parameters"
-    (before ((:notify @notifiers) "Notification"))
+    (with id ((:notify @notifiers) "Notification"))
+    (before @id)
+    (it "returns a UUID"
+      (should= UUID (class @id)))
     (it "has a title"
       (should (some #(in? "Notification-Title: Notification" %) @request)))
+    (it "has an id"
+      (should (some #(in? #"Notification-ID: \S+" %) @request)))
     (it "has no text"
       (should (some #(in? "Notification-Text: " %) @request)))
     (it "is not sticky"
@@ -214,7 +220,7 @@
     (it "does not have an icon"
       (should-not (some #(in? #"Notification-Icon: \S+" %) @request)))
     (it "does not have a callback"
-      (should-not (some #(in? #"Notification-Callback-\S+: \S+" %) @request))))
+      (should-not (some #(in? #"Notification-Callback-\S+: .*" %) @request))))
 
   (describe "when given text"
     (before ((:notify @notifiers) "Notification" :text "Notification text"))
