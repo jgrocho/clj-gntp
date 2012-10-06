@@ -69,13 +69,21 @@
   "Sends the message to the GNTP server at host:port. If callback is given it
   should an agent that will have a map of callback headers conjoined. Returns
   true on success and nil on failure."
-  ([host port message] (send-and-receive host port message nil))
-  ([host port message callback]
+  ([host port message binary-data] (send-and-receive host port message binary-data nil))
+  ([host port message binary-data callback]
    (when-let [conn (connect host port)]
      (try
-       (doto (:out conn)
-         (.print message)
-         (.flush))
+       (.print (:out conn) message)
+       (doseq [[ident {:keys [length data]}] binary-data]
+         (.print (:out conn)
+           (str "\r\n"
+                "Identifier: " ident "\r\n"
+                "Length: " length "\r\n"
+                "\r\n"))
+         (.write (:out conn) data 0 length)
+         (.print (:out conn) "\r\n"))
+       (.print (:out conn) "\r\n")
+       (.flush (:out conn))
        (let [[response callback-response]
              (split-with #(not (= "" %)) (line-seq (:in conn)))]
          (when callback
@@ -129,7 +137,7 @@
   (when (.canRead icon)
     (let [ident (digest/md5 icon)]
       (if (*binary-data* ident)
-        (str "x-growl-resouce://" ident)
+        (str "x-growl-resource://" ident)
         (let [length (.length icon)
               data (with-open [input (FileInputStream. icon)
                                output (ByteArrayOutputStream.)]
@@ -137,7 +145,7 @@
                      (.toByteArray output))]
           (set! *binary-data* (assoc *binary-data*
                                      ident {:length length :data data}))
-          (str "x-growl-resouce://" ident))))))
+          (str "x-growl-resource://" ident))))))
 (defmethod process-icon :default [icon]
   (throw (IllegalArgumentException. (str "Not a file or URL: " icon))))
 
@@ -148,17 +156,6 @@
     (str "Notification-Callback-Target: " callback "\r\n")
     (str "Notification-Callback-Context: " (:context callback) "\r\n"
          "Notification-Callback-Context-Type: " (:type callback) "\r\n")))
-
-(defn- binary-headers
-  "Returns binary-data correctly formated for GNTP. Expects a map with unique
-  identifiers as keys and a map with :length and :data keys as values."
-  [binary-data]
-  (for [[ident {:keys [length data]}] binary-data]
-    (str "\r\n"
-         "Identifier: " ident "\r\n"
-         "Length: " length "\r\n"
-         "\r\n"
-         (.toString (BigInteger. 1 data) 16))))
 
 (defn- notify
   "Sends a notification over GNTP. The notification type must have already been
@@ -179,7 +176,6 @@
          icon (process-icon (get options :icon nil))
          callback (get options :callback nil)
          replaces (get options :replaces nil)
-         binary-headers (binary-headers *binary-data*)
          id (UUID/randomUUID)
          message (str
                    header
@@ -194,11 +190,9 @@
                    (if replaces
                      (str "Notification-Coalescing-ID: " replaces "\r\n")
                      (str "Notification-Coalescing-ID: " id "\r\n"))
-                   (when callback (callback-headers callback))
-                   (apply str binary-headers)
-                   "\r\n")]
+                   (when callback (callback-headers callback)))]
      (when
-       (send-and-receive host port message (:agent callback))
+       (send-and-receive host port message *binary-data* (:agent callback))
        id))))
 
 (defn- register
@@ -227,16 +221,13 @@
                          "Notification-Display-Name: " name "\r\n"
                          "Notification-Enabled: " enabled "\r\n"
                          (when icon (str "Notification-Icon: " icon "\r\n"))))))
-              binary-headers (binary-headers *binary-data*)
               message (str
                         header
                         "Application-Name: " app-name "\r\n"
                         (when icon (str "Application-Icon: " icon "\r\n"))
                         "Notifications-Count: " (count notifications) "\r\n"
-                        (apply str notification-headers)
-                        (apply str binary-headers)
-                        "\r\n")]
-          (send-and-receive host port message)))
+                        (apply str notification-headers))]
+          (send-and-receive host port message *binary-data*)))
       (reduce (fn [m type]
                 (assoc m type
                        (partial notify app-name password host port type)))

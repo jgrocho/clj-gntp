@@ -111,15 +111,15 @@
       (with request (read-output))
       (before (@growler))
       (it "has an icon resource pointer"
-        (should (some #(in? #"Application-Icon: x-growl-resouce://\S+" %)
+        (should (some #(in? #"Application-Icon: x-growl-resource://\S+" %)
                       @request)))
       (it "has an identifier"
         (should (some #(in? #"Identifier: \S+" %) @request)))
       (it "has a length"
         (should (some #(in? #"Length: \d+" %) @request)))
       (it "has matching pointer and identifier"
-        (let [pointer-l (some #(in? #"Application-Icon: x-growl-resouce://\S+" %) @request)
-              pointer (second (re-matches #"Application-Icon: x-growl-resouce://(\S+)" pointer-l))
+        (let [pointer-l (some #(in? #"Application-Icon: x-growl-resource://\S+" %) @request)
+              pointer (second (re-matches #"Application-Icon: x-growl-resource://(\S+)" pointer-l))
               identifier-l (some #(in? #"Identifier: \S+" %) @request)
               identifier (second (re-matches #"Identifier: (\S+)" identifier-l))]
           (should= pointer identifier))))))
@@ -163,15 +163,15 @@
     (describe "as a file"
       (before (@growler :notify {:icon icon-file}))
       (it "has an icon resource pointer"
-        (should (some #(in? #"Notification-Icon: x-growl-resouce://\S+" %)
+        (should (some #(in? #"Notification-Icon: x-growl-resource://\S+" %)
                       @request)))
       (it "has an identifier"
         (should (some #(in? #"Identifier: \S+" %) @request)))
       (it "has a length"
         (should (some #(in? #"Length: \d+" %) @request)))
       (it "has matching pointer and identifier"
-        (let [pointer-l (some #(in? #"Notification-Icon: x-growl-resouce://\S+" %) @request)
-              pointer (second (re-matches #"Notification-Icon: x-growl-resouce://(\S+)" pointer-l))
+        (let [pointer-l (some #(in? #"Notification-Icon: x-growl-resource://\S+" %) @request)
+              pointer (second (re-matches #"Notification-Icon: x-growl-resource://(\S+)" pointer-l))
               identifier-l (some #(in? #"Identifier: \S+" %) @request)
               identifier (second (re-matches #"Identifier: (\S+)" identifier-l))]
           (should= pointer identifier)))))
@@ -262,15 +262,15 @@
     (describe "as a file"
       (before ((:notify @notifiers) "Notification" :icon icon-file))
       (it "has an icon resource pointer"
-        (should (some #(in? #"Notification-Icon: x-growl-resouce://\S+" %)
+        (should (some #(in? #"Notification-Icon: x-growl-resource://\S+" %)
                       @request)))
       (it "has an identifier"
         (should (some #(in? #"Identifier: \S+" %) @request)))
       (it "has a length"
         (should (some #(in? #"Length: \d+" %) @request)))
       (it "has matching pointer and identifier"
-        (let [pointer-l (some #(in? #"Notification-Icon: x-growl-resouce://\S+" %) @request)
-              pointer (second (re-matches #"Notification-Icon: x-growl-resouce://(\S+)" pointer-l))
+        (let [pointer-l (some #(in? #"Notification-Icon: x-growl-resource://\S+" %) @request)
+              pointer (second (re-matches #"Notification-Icon: x-growl-resource://(\S+)" pointer-l))
               identifier-l (some #(in? #"Identifier: \S+" %) @request)
               identifier (second (re-matches #"Identifier: (\S+)" identifier-l))]
           (should= pointer identifier)))))
