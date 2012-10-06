@@ -22,6 +22,8 @@
 (def ^:private default-host "localhost")
 (def ^:private default-port 23053)
 
+(def ^{:private true :dynamic true} *secure-random* (SecureRandom.))
+
 (defn- connect
   "Opens and connects a socket to host on port. Returns a map with the socket
   and input and output streams for the socket."
@@ -86,6 +88,13 @@
                             (when callback (await callback))
                             (.close (:socket conn))))))))))
 
+(defn- random-bytes
+  "Retuns n random bytes using SecureRandom."
+  [n]
+  (let [bs (byte-array n)]
+    (.nextBytes *secure-random* bs)
+    bs))
+
 (defn- gntp-header
   "Returns the proper GNTP header for use with password."
   [type password]
@@ -94,8 +103,7 @@
        " NONE"
        (when (seq password)
          (let [pad (fn [s n] (str (apply str (repeat (- n (count s)) "0")) s))
-               salt (let [bs (byte-array 16)
-                          _ (.nextBytes (SecureRandom.) bs)] bs)
+               salt (random-bytes 16)
                salthex (.toString (BigInteger. 1 salt) 16)
                saltsig (pad salthex 32)
                basis (byte-array (concat (.getBytes password "UTF-8") salt))
