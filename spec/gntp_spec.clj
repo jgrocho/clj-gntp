@@ -56,6 +56,11 @@
   []
   (map split-lines (split (.toString output-stream) #"\r\n\r\n")))
 
+(defmacro ^:private do-first [f & body]
+  `(let [result# ~f]
+     ~@body
+     result#))
+
 (describe "Creating a growler"
 
   (before (.reset output-stream))
@@ -75,7 +80,17 @@
     (it "does not send a password"
       (should= "GNTP/1.0 REGISTER NONE" (first (first @request))))
     (it "does not have an icon"
-      (should-not (some #(in? #"Application-Icon:" %) @request))))
+      (should-not (some #(in? #"Application-Icon:" %) @request)))
+    (it "has a machine name"
+      (should (some #(in? #"Origin-Machine-Name: \S+" %) @request)))
+    (it "has a software name"
+      (should (some #(in? #"Origin-Software-Name: \S+" %) @request)))
+    (it "has a software version"
+      (should (some #(in? #"Origin-Software-Version: \S+" %) @request)))
+    (it "has a platform name"
+      (should (some #(in? #"Origin-Platform-Name: \S+" %) @request)))
+    (it "has a platform version"
+      (should (some #(in? #"Origin-Platform-Version: \S+" %) @request))))
 
   (describe "when given a host name"
     (with growler (make-growler default-name :host "example.com"))
@@ -142,7 +157,17 @@
     (it "is enabled"
       (should (some #(in? "Notification-Enabled: true" %) @request)))
     (it "does not have an icon"
-      (should-not (some #(in? "Notification-Icon:" %) @request))))
+      (should-not (some #(in? "Notification-Icon:" %) @request)))
+    (it "has a machine name"
+      (should (some #(in? #"Origin-Machine-Name: \S+" %) @request)))
+    (it "has a software name"
+      (should (some #(in? #"Origin-Software-Name: \S+" %) @request)))
+    (it "has a software version"
+      (should (some #(in? #"Origin-Software-Version: \S+" %) @request)))
+    (it "has a platform name"
+      (should (some #(in? #"Origin-Platform-Name: \S+" %) @request)))
+    (it "has a platform version"
+      (should (some #(in? #"Origin-Platform-Version: \S+" %) @request))))
 
   (describe "when given a name"
     (before (@growler :notify {:name "Notification"}))
@@ -197,7 +222,10 @@
       (it)))
 
   (with growler (make-growler default-name))
-  (with notifiers (@growler :notify nil :notify2 nil))
+  (with notifiers
+    (do-first
+      (@growler :notify nil :notify2 nil)
+      (.reset output-stream)))
   (with request (read-output))
 
   (before (.reset output-stream))
@@ -229,7 +257,17 @@
     (it "does not have an icon"
       (should-not (some #(in? #"Notification-Icon: \S+" %) @request)))
     (it "does not have a callback"
-      (should-not (some #(in? #"Notification-Callback-\S+: .*" %) @request))))
+      (should-not (some #(in? #"Notification-Callback-\S+: .*" %) @request)))
+    (it "has a machine name"
+      (should (some #(in? #"Origin-Machine-Name: \S+" %) @request)))
+    (it "has a software name"
+      (should (some #(in? #"Origin-Software-Name: \S+" %) @request)))
+    (it "has a software version"
+      (should (some #(in? #"Origin-Software-Version: \S+" %) @request)))
+    (it "has a platform name"
+      (should (some #(in? #"Origin-Platform-Name: \S+" %) @request)))
+    (it "has a platform version"
+      (should (some #(in? #"Origin-Platform-Version: \S+" %) @request))))
 
   (describe "when given text"
     (before ((:notify @notifiers) "Notification" :text "Notification text"))

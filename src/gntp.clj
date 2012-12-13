@@ -1,6 +1,7 @@
 (ns gntp
   (:require [clojure.java.io :refer [copy]]
-            digest)
+            digest
+            [gntp.version :as version])
   (:import (java.io
              BufferedReader
              ByteArrayOutputStream
@@ -121,6 +122,18 @@
            (str " SHA512:" keyhash "." saltsig)))
        "\r\n"))
 
+(defn- origin-headers
+  "Returns the proper GNTP Origin-* headers for this system."
+  []
+  (let [machine-name (.getHostName (InetAddress/getLocalHost))
+        platform-name (System/getProperty "os.name")
+        platform-version (System/getProperty "os.version")]
+    (str "Origin-Machine-Name: " machine-name "\r\n"
+         "Origin-Software-Name: gntp\r\n"
+         "Origin-Software-Version: " version/string "\r\n"
+         "Origin-Platform-Name: " platform-name "\r\n"
+         "Origin-Platform-Version: " platform-version "\r\n")))
+
 ; *binary-data* is used as a map for the binary data that needs to be sent when
 ; registering or sending a notification.
 (declare ^{:private true :dynamic true} *binary-data*)
@@ -179,6 +192,7 @@
          id (UUID/randomUUID)
          message (str
                    header
+                   (origin-headers)
                    "Application-Name: " app-name "\r\n"
                    "Notification-Name: " type "\r\n"
                    "Notification-ID: " id "\r\n"
@@ -223,6 +237,7 @@
                          (when icon (str "Notification-Icon: " icon "\r\n"))))))
               message (str
                         header
+                        (origin-headers)
                         "Application-Name: " app-name "\r\n"
                         (when icon (str "Application-Icon: " icon "\r\n"))
                         "Notifications-Count: " (count notifications) "\r\n"
