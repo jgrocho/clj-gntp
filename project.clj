@@ -5,6 +5,6 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [org.clojars.jgrocho/digest "1.5.0"]]
-  :profiles {:dev {:dependencies [[speclj "2.3.1"]]
-                   :plugins [[speclj "2.3.1"]]}}
+  :profiles {:dev {:dependencies [[speclj "2.4.0"]]
+                   :plugins [[speclj "2.4.0"]]}}
   :test-paths ["spec/"])
