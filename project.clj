@@ -1,4 +1,4 @@
-(defproject gntp "0.5.0"
+(defproject gntp "0.5.1"
   :description "Clojure library for sending notifications over GNTP"
   :url "https://github.com/jgrocho/clj-gntp"
   :license {:name "Eclipse Public License"
