@@ -22,7 +22,7 @@ Then you can require it as needed:
 ```clojure
 (ns my-project.core
   (:require [gntp :refer [make-growler]]
-            [clojure.java.io :refer [as-file]]))
+            [clojure.java.io :refer [input-stream resource]]))
 
 ;;; Create the growler function that will connect to "remote"
 ;;; using the password "secret".
@@ -32,8 +32,9 @@ Then you can require it as needed:
 
 ;;; Register a "success" notification and a failure notification (using
 ;;; a "red-alert.png" icon.
-(def notifiers (growler :success nil
-                        :failure {:icon (as-file "red-alert.png")}))
+(def notifiers
+  (growler :success nil
+           :failure {:icon ((input-stream (resource "red-alert.png")))}))
 
 ;;; Send a failure notification.
 ((:success notifiers) "Failed")
@@ -71,12 +72,12 @@ as keyword-value pairs.
 A missing or `nil`-valued keyword takes on its default value
 and any extra keywords have no effect.
 
-|  Keyword  |   Default   |   Type   |
-|-----------|-------------|----------|
-|   :host   | "localhost" |  String  |
-|   :port   |    65335    |  Number  |
-| :password |     ""      |  String  |
-|   :icon   |    `nil`    | URL/File |
+|  Keyword  |   Default   |         Type         |
+|-----------|-------------|----------------------|
+|   :host   | "localhost" |        String        |
+|   :port   |    65335    |        Number        |
+| :password |     ""      |        String        |
+|   :icon   |    `nil`    | URL/File/InputStream |
 
 *   The `:host` and `:port` arguments represent
     the hostname and port, respectively,
@@ -91,7 +92,7 @@ and any extra keywords have no effect.
     for display with this application.
     If the client specifies it as a URL,
     the request sends the URL string.
-    If she specifies it as a File,
+    If she specifies it as a File or an InputStream,
     the library reads and embeds the data directly into the request.
 
 `make-growler` returns a partially applied function.
@@ -108,11 +109,11 @@ A missing or `nil`-valued keyword takes on its default value
 and any extra keywords have no effect.
 An empty or `nil` hash-map gives each keyword its default value.
 
-| Keyword  |     Default     |   Type   |
-|----------|-----------------|----------|
-|  :name   | (name :keyword) |  String  |
-| :enabled |      true       | Boolean  |
-|  :icon   |      `nil`      | URL/File |
+| Keyword  |     Default     |         Type         |
+|----------|-----------------|----------------------|
+|  :name   | (name :keyword) |        String        |
+| :enabled |      true       |        Boolean       |
+|  :icon   |      `nil`      | URL/File/InputStream |
 
 *   The `:name` option represents the notification type's display name
     and typically the server displays this string to the end-user.
@@ -150,14 +151,14 @@ and `:replaces` arguments as keyword-value pairs.
 A missing or `nil`-valued keyword takes on its default value
 and any extra keywords have no effect.
 
-|  Keyword  |   Default   |     Type     |
-|-----------|-------------|--------------|
-|   :text   |     ""      |    String    |
-|  :sticky  |    false    |   Boolean    |
-| :priority |      0      |   Integer    |
-|   :icon   |    `nil`    |   URL/File   |
-| :replaces |    `nil`    |     UUID     |
-| :callback |    `nil`    | URL/Hash-map |
+|  Keyword  |   Default   |         Type         |
+|-----------|-------------|----------------------|
+|   :text   |     ""      |        String        |
+|  :sticky  |    false    |        Boolean       |
+| :priority |      0      |        Integer       |
+|   :icon   |    `nil`    | URL/File/InputStream |
+| :replaces |    `nil`    |         UUID         |
+| :callback |    `nil`    |     URL/Hash-map     |
 
 This function makes the GNTP NOTIFY request to the server.
 It returns a time-based UUID that identifies the notification.

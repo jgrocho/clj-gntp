@@ -1,6 +1,6 @@
 (ns gntp-spec
   (:require [clojure.string :refer [split split-lines]]
-            [clojure.java.io :refer [as-file as-url resource]]
+            [clojure.java.io :refer [as-file as-url input-stream resource]]
             [speclj.core :refer :all]
             [gntp :refer [make-growler]])
   (:import (java.io
@@ -14,6 +14,7 @@
 (def ^:private default-name "gntp Self Test")
 (def ^:private icon-url (as-url "http://example.com/icon.png"))
 (def ^:private icon-file (as-file (resource "icon.png")))
+(def ^:private icon-stream (input-stream (resource "icon.png")))
 
 ; We need something that implements (.readLine)
 (defn- input-stub [s]
@@ -121,6 +122,23 @@
         (should
           (in? (str "Application-Icon: " (.toString icon-url))
                 @request))))
+    (describe "as a stream"
+      (with growler (make-growler default-name :icon icon-stream))
+      (with request (read-output))
+      (before (@growler))
+      (it "has an icon resource pointer"
+        (should (in? #"Application-Icon: x-growl-resource://\S+"
+                      @request)))
+      (it "has an identifier"
+        (should (in? #"Identifier: \S+" @request)))
+      (it "has a length"
+        (should (in? #"Length: \d+" @request)))
+      (it "has matching pointer and identifier"
+        (let [pointer-l (in? #"Application-Icon: x-growl-resource://\S+" @request)
+              pointer (second (re-matches #"Application-Icon: x-growl-resource://(\S+)" pointer-l))
+              identifier-l (in? #"Identifier: \S+" @request)
+              identifier (second (re-matches #"Identifier: (\S+)" identifier-l))]
+          (should= pointer identifier))))
     (describe "as a file"
       (with growler (make-growler default-name :icon icon-file))
       (with request (read-output))
@@ -185,6 +203,21 @@
       (before (@growler :notify {:icon icon-url}))
       (it "has an icon url"
         (should (in? #"Notification-Icon: \S+" @request))))
+    (describe "as a stream"
+      (before (@growler :notify {:icon icon-stream}))
+      (it "has an icon resource pointer"
+        (should (in? #"Notification-Icon: x-growl-resource://\S+"
+                      @request)))
+      (it "has an identifier"
+        (should (in? #"Identifier: \S+" @request)))
+      (it "has a length"
+        (should (in? #"Length: \d+" @request)))
+      (it "has matching pointer and identifier"
+        (let [pointer-l (in? #"Notification-Icon: x-growl-resource://\S+" @request)
+              pointer (second (re-matches #"Notification-Icon: x-growl-resource://(\S+)" pointer-l))
+              identifier-l (in? #"Identifier: \S+" @request)
+              identifier (second (re-matches #"Identifier: (\S+)" identifier-l))]
+          (should= pointer identifier))))
     (describe "as a file"
       (before (@growler :notify {:icon icon-file}))
       (it "has an icon resource pointer"
@@ -293,6 +326,21 @@
       (before ((:notify @notifiers) "Notification" :icon icon-url))
       (it "has an icon url"
         (should (in? #"Notification-Icon: \S+" @request))))
+    (describe "as a stream"
+      (before ((:notify @notifiers) "Notification" :icon icon-stream))
+      (it "has an icon resource pointer"
+        (should (in? #"Notification-Icon: x-growl-resource://\S+"
+                      @request)))
+      (it "has an identifier"
+        (should (in? #"Identifier: \S+" @request)))
+      (it "has a length"
+        (should (in? #"Length: \d+" @request)))
+      (it "has matching pointer and identifier"
+        (let [pointer-l (in? #"Notification-Icon: x-growl-resource://\S+" @request)
+              pointer (second (re-matches #"Notification-Icon: x-growl-resource://(\S+)" pointer-l))
+              identifier-l (in? #"Identifier: \S+" @request)
+              identifier (second (re-matches #"Identifier: (\S+)" identifier-l))]
+          (should= pointer identifier))))
     (describe "as a file"
       (before ((:notify @notifiers) "Notification" :icon icon-file))
       (it "has an icon resource pointer"
