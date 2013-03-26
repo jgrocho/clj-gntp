@@ -1,10 +1,11 @@
 (ns gntp
-  (:require [clojure.java.io :refer [copy]]
+  (:require [clojure.java.io :refer [copy input-stream]]
             digest
             [gntp.version :as version])
   (:import (java.io
              BufferedReader
              ByteArrayOutputStream
+             InputStream
              InputStreamReader
              IOException
              File
@@ -137,30 +138,34 @@
 ; *binary-data* is used as a map for the binary data that needs to be sent when
 ; registering or sending a notification.
 (declare ^{:private true :dynamic true} *binary-data*)
-(defmulti ^:private process-icon
-  "Processes icon for use with GNTP. For URLs, returns the string
-  representation. For Files, returns the the proper GNTP header using the MD5
-  hash of the file contents as the unique identifier. It also adds the the
-  length and data to the *binary-data* map using the unique identifier as the
-  key. For anything else it throws an IllegalArgumentException."
-  (fn [icon] (class icon)))
-(defmethod process-icon nil [_] nil)
-(defmethod process-icon URL [icon] (.toString icon))
-(defmethod process-icon File [icon]
-  (when (.canRead icon)
-    (let [ident (digest/md5 icon)]
-      (if (*binary-data* ident)
-        (str "x-growl-resource://" ident)
-        (let [length (.length icon)
-              data (with-open [input (FileInputStream. icon)
-                               output (ByteArrayOutputStream.)]
-                     (copy input output)
-                     (.toByteArray output))]
-          (set! *binary-data* (assoc *binary-data*
-                                     ident {:length length :data data}))
-          (str "x-growl-resource://" ident))))))
-(defmethod process-icon :default [icon]
-  (throw (IllegalArgumentException. (str "Not a file or URL: " icon))))
+
+(defprotocol Iconizable
+  (process-icon [this]
+    "Processes icon for use with GNTP. For URLs, returns the string
+    representation. For Files and streams, returns the the proper GNTP header
+    using the MD5 hash of the file contents as the unique identifier.
+    It also adds the the length and data to the *binary-data* map using the
+    unique identifier as the key."))
+
+(extend-protocol Iconizable
+  nil
+  (process-icon [_] nil)
+  URL
+  (process-icon [icon] (.toString icon))
+  InputStream
+  (process-icon [stream]
+    (let [data (with-open [output (ByteArrayOutputStream.)]
+                 (copy stream output)
+                 (.toByteArray output))
+          hash (digest/md5 data)]
+      (set! *binary-data* (assoc *binary-data*
+                                 hash {:length (alength data) :data data}))
+      (str "x-growl-resource://" hash)))
+  File
+  (process-icon [icon]
+    (when (.canRead icon)
+      (with-open [stream (input-stream icon)]
+        (process-icon stream)))))
 
 (defn- callback-headers
   "Returns the proper headers for use with callback."
