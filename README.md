@@ -22,7 +22,7 @@ Then you can require it as needed:
 ```clojure
 (ns my-project.core
   (:require [gntp :refer [make-growler]]
-            [clojure.java.io :refer [input-stream resource]]))
+            [clojure.java.io :refer [input-stream resource as-url]]))
 
 ;;; Create the growler function that will connect to "remote"
 ;;; using the password "secret".
@@ -41,8 +41,10 @@ Then you can require it as needed:
 
 ;;; Send a success notification, overriding the icon, with custom body text.
 ((:success notifiers) "Success!" :text "The thing completed successfully"
-                                 :icon "http://otherserver/images/success.jpg")
+                                 :icon (as-url "http://otherserver/images/success.jpg"))
 ```
+
+View the tests in `spec/` for more examples.
 
 ## Description
 
